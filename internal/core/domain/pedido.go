@@ -95,6 +95,7 @@ func (p *Pedido) CalcularValorTotal2() {
 	}
 	p.ValorTotal = total
 }
+
 func (p *Pedido) AtualizarStatus(novoStatus StatusPedido) {
 	p.Status = novoStatus
 	p.UpdatedAt = time.Now()
