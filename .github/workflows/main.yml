@@ -32,12 +32,16 @@ jobs:
       - name: Get changed Go files in PR
         id: changed_files
         run: |
-          echo "::group::Diff files"
           CHANGED=$(git diff --name-only origin/main...HEAD | grep '\.go$' || true)
-          echo "$CHANGED"
-          echo "::endgroup::"
-          # salva para os próximos steps
-          echo "changed_files=$CHANGED" >> $GITHUB_OUTPUT
+          if [ -z "$CHANGED" ]; then
+            echo "No Go files changed."
+            echo "changed_files=" >> $GITHUB_OUTPUT
+          else
+            # transforma múltiplas linhas em separadas por vírgula
+            FILES=$(echo "$CHANGED" | tr '\n' ',' | sed 's/,$//')
+            echo "Changed files: $FILES"
+            echo "changed_files=$FILES" >> $GITHUB_OUTPUT
+          fi
 
       - name: Filter coverage for changed files
         id: filter_coverage
