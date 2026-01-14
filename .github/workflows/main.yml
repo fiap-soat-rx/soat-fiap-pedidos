@@ -1,0 +1,80 @@
+name: PR Coverage Check
+
+on:
+  pull_request:
+    paths:
+      - '**/*.go'
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run tests with coverage
+        run: |
+          go test ./internal/core/... ./internal/adapters/primary/... \
+            -coverprofile=coverage.out \
+            -covermode=atomic
+
+      - name: Get changed Go files in PR
+        id: changed_files
+        run: |
+          echo "::group::Diff files"
+          CHANGED=$(git diff --name-only origin/main...HEAD | grep '\.go$' || true)
+          echo "$CHANGED"
+          echo "::endgroup::"
+          # salva para os próximos steps
+          echo "changed_files=$CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Filter coverage for changed files
+        id: filter_coverage
+        run: |
+          FILES="$([[ -z "${{ steps.changed_files.outputs.changed_files }}" ]] && echo "" || echo ${{ steps.changed_files.outputs.changed_files }} )"
+          if [ -z "$FILES" ]; then
+            echo "No Go files changed."
+            echo "pr_coverage=100" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          TOTAL=0
+          COVERED=0
+          while read -r line; do
+            if [[ "$line" == mode:* ]]; then
+              continue
+            fi
+            FILE=$(echo "$line" | cut -d: -f1)
+            STATEMENTS=$(echo "$line" | awk -F' ' '{print $2}')
+            COUNT=$(echo "$line" | awk -F' ' '{print $3}')
+            if echo "$FILES" | grep -q "$FILE"; then
+              TOTAL=$((TOTAL + STATEMENTS))
+              COVERED=$((COVERED + COUNT))
+            fi
+          done < coverage.out
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "No coverage info for changed files."
+            echo "pr_coverage=0" >> $GITHUB_OUTPUT
+          else
+            PR_COVERAGE=$(awk "BEGIN {printf \"%.1f\", ($COVERED/$TOTAL)*100}")
+            echo "PR coverage: $PR_COVERAGE%"
+            echo "pr_coverage=$PR_COVERAGE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fail if PR coverage < 80%
+        if: ${{ steps.filter_coverage.outputs.pr_coverage != '' && steps.filter_coverage.outputs.pr_coverage < 80 }}
+        run: |
+          echo "PR coverage is below 80%! Failing check."
+          exit 1
