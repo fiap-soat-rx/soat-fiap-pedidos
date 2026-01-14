@@ -41,6 +41,14 @@ func TestCalcularValorTotal(t *testing.T) {
 	}
 }
 
+func TestCalcularValorTotaldois(t *testing.T) {
+	p := &Pedido{Itens: []ItemPedido{{ProdutoID: "p1", Preco: 1.5, Quantidade: 2}, {ProdutoID: "p2", Preco: 2, Quantidade: 3}}}
+	p.CalcularValorTotaldois()
+	if p.ValorTotal != 1.5*2+2*3 {
+		t.Fatalf("unexpected total: %v", p.ValorTotal)
+	}
+}
+
 func TestAtualizarStatusAndIsStatusValido(t *testing.T) {
 	p := &Pedido{Status: StatusRecebido}
 	p.AtualizarStatus(StatusEmPreparacao)
