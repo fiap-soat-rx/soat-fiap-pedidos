@@ -88,7 +88,7 @@ func (p *Pedido) CalcularValorTotal1() {
 	p.ValorTotal = total
 }
 
-func (p *Pedido) CalcularValorTota2l() {
+func (p *Pedido) CalcularValorTotal2() {
 	total := 0.0
 	for _, item := range p.Itens {
 		total += item.Preco * float64(item.Quantidade)
