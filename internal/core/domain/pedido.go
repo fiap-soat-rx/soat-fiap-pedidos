@@ -116,6 +116,77 @@ func (p *Pedido) CalcularValorTotal4() {
 	p.ValorTotal = total
 }
 
+func (p *Pedido) CalcularValorTotal11() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
+
+func (p *Pedido) CalcularValorTotal22() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
+
+func (p *Pedido) CalcularValorTotal33() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
+
+func (p *Pedido) CalcularValorTotal44() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
+
+func (p *Pedido) CalcularValorTotal111() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
+
+func (p *Pedido) CalcularValorTotal222() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
+
+func (p *Pedido) CalcularValorTotal333() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
+
+func (p *Pedido) CalcularValorTotal444() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
 func (p *Pedido) AtualizarStatus(novoStatus StatusPedido) {
 	p.Status = novoStatus
 	p.UpdatedAt = time.Now()
