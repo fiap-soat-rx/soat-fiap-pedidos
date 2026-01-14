@@ -44,26 +44,39 @@ jobs:
         run: |
           TOTAL=0
           COVERED=0
+          FILES="${{ steps.changed_files.outputs.changed_files }}"
+
+          if [ -z "$FILES" ]; then
+            echo "No Go files changed in PR."
+            echo "pr_coverage=100" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Processa coverage.out
           while read -r line; do
             if [[ "$line" == mode:* ]]; then
               continue
             fi
+
             FILE=$(echo "$line" | cut -d: -f1)
             STATEMENTS=$(echo "$line" | awk '{print $2}')
             COUNT=$(echo "$line" | awk '{print $3}')
-            if echo "${{ steps.changed_files.outputs.changed_files }}" | grep -q "$FILE"; then
-              TOTAL=$((TOTAL + STATEMENTS))
-              COVERED=$((COVERED + COUNT))
-            fi
+
+            for f in $(echo "$FILES" | tr ',' ' '); do
+              if [[ "$FILE" == *"$f" ]]; then
+                TOTAL=$((TOTAL + STATEMENTS))
+                COVERED=$((COVERED + COUNT))
+              fi
+            done
           done < coverage.out
 
           if [ "$TOTAL" -eq 0 ]; then
             echo "No coverage info for changed files."
-            echo "pr_coverage=0" >> "${GITHUB_OUTPUT}"
+            echo "pr_coverage=0" >> $GITHUB_OUTPUT
           else
             PR_COVERAGE=$(awk "BEGIN {printf \"%.1f\", ($COVERED/$TOTAL)*100}")
             echo "PR coverage: $PR_COVERAGE%"
-            echo "pr_coverage=$PR_COVERAGE" >> "${GITHUB_OUTPUT}"
+            echo "pr_coverage=$PR_COVERAGE" >> $GITHUB_OUTPUT
 
       - name: Fail if PR coverage < 80%
         if: ${{ steps.pr_coverage.outputs.pr_coverage != '' && steps.pr_coverage.outputs.pr_coverage < 80 }}
