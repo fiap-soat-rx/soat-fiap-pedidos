@@ -47,12 +47,14 @@ jobs:
             -coverprofile=coverage.out
 
       - name: Check coverage for modified files
+        id: coverage-check
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           FAILED=0
           TOTAL_COVERAGE=0
           FILE_COUNT=0
           MIN=${{ env.MIN_COVERAGE }}
+          REPORT=""
 
           COVER_OUTPUT=$(go tool cover -func=coverage.out)
 
@@ -83,9 +85,11 @@ jobs:
             RESULT=$(echo "$COVERAGE < $MIN" | bc -l)
             if [[ "$RESULT" -eq 1 ]]; then
               echo "FAIL $file: ${COVERAGE}% (min: ${MIN}%)"
+              REPORT="${REPORT}FAIL ${file}: ${COVERAGE}%\n"
               FAILED=1
             else
               echo "PASS $file: ${COVERAGE}%"
+              REPORT="${REPORT}PASS ${file}: ${COVERAGE}%\n"
             fi
           done
 
@@ -93,12 +97,18 @@ jobs:
             AVG_COVERAGE=$(echo "scale=2; $TOTAL_COVERAGE / $FILE_COUNT" | bc)
             echo ""
             echo "Average coverage for modified files: ${AVG_COVERAGE}%"
+            echo "avg_coverage=${AVG_COVERAGE}" >> $GITHUB_OUTPUT
+          else
+            AVG_COVERAGE="N/A"
+            echo "avg_coverage=N/A" >> $GITHUB_OUTPUT
+          fi
 
-            RESULT=$(echo "$AVG_COVERAGE < $MIN" | bc -l)
-            if [[ "$RESULT" -eq 1 ]]; then
-              echo "Average coverage is below ${MIN}%"
-              FAILED=1
-            fi
+          echo "status=$([[ $FAILED -eq 0 ]] && echo 'pass' || echo 'fail')" >> $GITHUB_OUTPUT
+
+          RESULT=$(echo "$AVG_COVERAGE < $MIN" | bc -l 2>/dev/null || echo "0")
+          if [[ "$RESULT" -eq 1 ]]; then
+            echo "Average coverage is below ${MIN}%"
+            FAILED=1
           fi
 
           if [[ $FAILED -eq 1 ]]; then
@@ -118,24 +128,18 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { execSync } = require('child_process');
-
-            let coverageOutput = '';
-            try {
-              coverageOutput = execSync('go tool cover -func=coverage.out | tail -1').toString();
-            } catch (e) {
-              coverageOutput = 'Could not get coverage summary';
-            }
-
-            const totalMatch = coverageOutput.match(/(\d+\.?\d*)%/);
-            const totalCoverage = totalMatch ? totalMatch[1] : 'N/A';
+            const avgCoverage = '${{ steps.coverage-check.outputs.avg_coverage }}';
+            const status = '${{ steps.coverage-check.outputs.status }}';
+            const minRequired = '${{ env.MIN_COVERAGE }}';
+            const statusIcon = status === 'pass' ? 'PASS' : 'FAIL';
 
             const body = `## Coverage Report
 
             | Metric | Value |
             |--------|-------|
-            | Total Coverage | ${totalCoverage}% |
-            | Minimum Required | ${{ env.MIN_COVERAGE }}% |
+            | Modified Files Coverage | ${avgCoverage}% |
+            | Minimum Required | ${minRequired}% |
+            | Status | ${statusIcon} |
 
             <details>
             <summary>Modified files in this PR</summary>
