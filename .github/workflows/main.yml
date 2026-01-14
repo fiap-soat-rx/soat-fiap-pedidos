@@ -37,11 +37,11 @@ jobs:
             echo "No Go files changed."
             echo "changed_files=" >> $GITHUB_OUTPUT
           else
-            # transforma múltiplas linhas em separadas por vírgula
             FILES=$(echo "$CHANGED" | tr '\n' ',' | sed 's/,$//')
             echo "Changed files: $FILES"
             echo "changed_files=$FILES" >> $GITHUB_OUTPUT
           fi
+
 
       - name: Filter coverage for changed files
         id: filter_coverage
