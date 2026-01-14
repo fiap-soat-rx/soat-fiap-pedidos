@@ -33,15 +33,15 @@ jobs:
         id: changed_files
         run: |
           CHANGED=$(git diff --name-only origin/main...HEAD | grep '\.go$' || true)
-          if [ -z "$CHANGED" ]; then
+          FILES=$(echo "$CHANGED" | sed '/^\s*$/d' | tr -d '\r' | tr '\n' ',' | sed 's/,$//')
+      
+          if [ -z "$FILES" ]; then
             echo "No Go files changed."
             echo "changed_files=" >> $GITHUB_OUTPUT
           else
-            FILES=$(echo "$CHANGED" | tr '\n' ',' | sed 's/,$//')
             echo "Changed files: $FILES"
             echo "changed_files=$FILES" >> $GITHUB_OUTPUT
           fi
-
 
       - name: Filter coverage for changed files
         id: filter_coverage
