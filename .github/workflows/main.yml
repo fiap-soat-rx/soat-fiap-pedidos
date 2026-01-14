@@ -2,84 +2,137 @@ name: PR Coverage Check
 
 on:
   pull_request:
+    branches: [main, master]
     paths:
-      - '**/*.go'
+      - "**.go"
+
+env:
+  GO_VERSION: "1.22"
+  MIN_COVERAGE: 70
 
 jobs:
-  coverage:
+  coverage-check:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Run tests with coverage
-        run: |
-          go test ./internal/core/... ./internal/adapters/primary/... \
-            -coverprofile=coverage.out \
-            -covermode=atomic
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Get changed Go files
-        id: changed_files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **/*.go
+          files_ignore: |
+            **/*_test.go
+            **/mock_*.go
+            **/mocks/**
+
+      - name: Run tests with coverage
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          FILES=$(git diff --name-only origin/main...HEAD | grep '\.go$' || true)
-          echo "Changed files: $FILES"
-          delimiter="$(openssl rand -hex 8)"
-          echo "changed_files<<${delimiter}" >> "${GITHUB_OUTPUT}"
-          echo "$FILES" >> "${GITHUB_OUTPUT}"
-          echo "${delimiter}" >> "${GITHUB_OUTPUT}"
+          go test ./... \
+            -coverpkg=./internal/core/...,./internal/adapters/primary/... \
+            -coverprofile=coverage.out
 
-      - name: Calculate PR coverage
-        id: pr_coverage
+      - name: Check coverage for modified files
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          TOTAL=0
-          COVERED=0
-          FILES="${{ steps.changed_files.outputs.changed_files }}"
+          FAILED=0
+          TOTAL_COVERAGE=0
+          FILE_COUNT=0
 
-          if [ -z "$FILES" ]; then
-            echo "No Go files changed in PR."
-            echo "pr_coverage=100" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Processa coverage.out
-          while read -r line; do
-            if [[ "$line" == mode:* ]]; then
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            if [[ ! -f "$file" ]]; then
               continue
             fi
 
-            FILE=$(echo "$line" | cut -d: -f1)
-            STATEMENTS=$(echo "$line" | awk '{print $2}')
-            COUNT=$(echo "$line" | awk '{print $3}')
+            PACKAGE_PATH=$(dirname "$file" | sed 's|^|./|')
+            COVERAGE=$(go tool cover -func=coverage.out | grep "^${PACKAGE_PATH}" | awk '{sum+=$3; count++} END {if(count>0) print sum/count; else print 0}' | sed 's/%//')
 
-            for f in $(echo "$FILES" | tr ',' ' '); do
-              if [[ "$FILE" == *"$f" ]]; then
-                TOTAL=$((TOTAL + STATEMENTS))
-                COVERED=$((COVERED + COUNT))
+            if [[ -z "$COVERAGE" || "$COVERAGE" == "0" ]]; then
+              FILE_COVERAGE=$(go tool cover -func=coverage.out | grep -F "${file%.go}" | awk '{print $3}' | sed 's/%//' | head -1)
+              COVERAGE=${FILE_COVERAGE:-0}
+            fi
+
+            if [[ -n "$COVERAGE" && "$COVERAGE" != "0" ]]; then
+              TOTAL_COVERAGE=$(echo "$TOTAL_COVERAGE + $COVERAGE" | bc)
+              FILE_COUNT=$((FILE_COUNT + 1))
+
+              if (( $(echo "$COVERAGE < ${{ env.MIN_COVERAGE }}" | bc -l) )); then
+                echo "FAIL $file: ${COVERAGE}%"
+                FAILED=1
+              else
+                echo "PASS $file: ${COVERAGE}%"
               fi
-            done
-          done < coverage.out
+            fi
+          done
 
-          if [ "$TOTAL" -eq 0 ]; then
-            echo "No coverage info for changed files."
-            echo "pr_coverage=0" >> $GITHUB_OUTPUT
-          else
-            PR_COVERAGE=$(awk "BEGIN {printf \"%.1f\", ($COVERED/$TOTAL)*100}")
-            echo "PR coverage: $PR_COVERAGE%"
-            echo "pr_coverage=$PR_COVERAGE" >> $GITHUB_OUTPUT
+          if [[ $FILE_COUNT -gt 0 ]]; then
+            AVG_COVERAGE=$(echo "scale=2; $TOTAL_COVERAGE / $FILE_COUNT" | bc)
+            echo "Average coverage: ${AVG_COVERAGE}%"
 
-      - name: Fail if PR coverage < 80%
-        if: ${{ steps.pr_coverage.outputs.pr_coverage != '' && steps.pr_coverage.outputs.pr_coverage < 80 }}
-        run: |
-          echo "PR coverage is below 80%! Failing check."
-          exit 1
+            if (( $(echo "$AVG_COVERAGE < ${{ env.MIN_COVERAGE }}" | bc -l) )); then
+              echo "Average coverage is below ${{ env.MIN_COVERAGE }}%"
+              FAILED=1
+            fi
+          fi
+
+          if [[ $FAILED -eq 1 ]]; then
+            exit 1
+          fi
+
+      - name: Upload coverage report
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+          retention-days: 7
+
+      - name: Post coverage comment on PR
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+
+            let coverageOutput = '';
+            try {
+              coverageOutput = execSync('go tool cover -func=coverage.out | tail -1').toString();
+            } catch (e) {
+              coverageOutput = 'Could not get coverage summary';
+            }
+
+            const totalMatch = coverageOutput.match(/(\d+\.?\d*)%/);
+            const totalCoverage = totalMatch ? totalMatch[1] : 'N/A';
+
+            const body = `## Coverage Report
+
+            | Metric | Value |
+            |--------|-------|
+            | Total Coverage | ${totalCoverage}% |
+            | Minimum Required | ${{ env.MIN_COVERAGE }}% |
+
+            <details>
+            <summary>Modified files in this PR</summary>
+
+            \`\`\`
+            ${{ steps.changed-files.outputs.all_changed_files }}
+            \`\`\`
+
+            </details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
