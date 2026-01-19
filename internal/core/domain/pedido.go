@@ -80,6 +80,56 @@ func (p *Pedido) CalcularValorTotal() {
 	p.ValorTotal = total
 }
 
+func (p *Pedido) CalcularValorTotalg() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+func (p *Pedido) CalcularValorTotalf() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+func (p *Pedido) CalcularValorTotale() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+func (p *Pedido) CalcularValorTotald() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+func (p *Pedido) CalcularValorTotalc() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+func (p *Pedido) CalcularValorTotalb() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+func (p *Pedido) CalcularValorTotala() {
+	total := 0.0
+	for _, item := range p.Itens {
+		total += item.Preco * float64(item.Quantidade)
+	}
+	p.ValorTotal = total
+}
+
 func (p *Pedido) AtualizarStatus(novoStatus StatusPedido) {
 	p.Status = novoStatus
 	p.UpdatedAt = time.Now()
